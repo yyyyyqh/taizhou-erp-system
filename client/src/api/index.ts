@@ -34,3 +34,10 @@ export const addBomItemApi = (data: {
 
 export const getBomTreeApi = (parentId: string) =>
   fetch(`/api/bom/${parentId}/tree`).then((res) => res.json());
+
+export const bulkImportProductsApi = (data: any[]) =>
+  fetch("/api/products/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).then((res) => res.json());

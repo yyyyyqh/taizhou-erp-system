@@ -19,4 +19,19 @@ export class ProductController {
       data: list,
     });
   });
+
+  static bulkImport = catchAsync(async (req: Request, res: Response) => {
+    const items = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: "数据不能为空" });
+    }
+    const result = await ProductService.bulkImport(items);
+    res
+      .status(201)
+      .json({
+        success: true,
+        message: `成功导入 ${result.length} 条数据`,
+        data: result,
+      });
+  });
 }

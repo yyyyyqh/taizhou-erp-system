@@ -1,5 +1,21 @@
 <template>
   <div class="product-container">
+    <div style="margin-bottom: 15px; display: flex; gap: 10px">
+      <el-upload
+        action=""
+        :auto-upload="false"
+        :show-file-list="false"
+        :on-change="handleExcelImport"
+        accept=".xlsx, .xls"
+      >
+        <el-button type="success" :loading="importLoading"
+          >一键导入 Excel</el-button
+        >
+      </el-upload>
+      <el-button type="info" plain @click="downloadTemplate"
+        >下载导入模板</el-button
+      >
+    </div>
     <el-tabs v-model="activeTab" @tab-change="handleTabChange">
       <el-tab-pane label="物料与库存台账" name="list">
         <el-table
@@ -210,6 +226,8 @@
 </template>
 
 <script setup lang="ts">
+import * as XLSX from "xlsx";
+import { bulkImportProductsApi } from "../../api/index";
 import { ref, reactive, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import {
@@ -222,6 +240,68 @@ import {
 const activeTab = ref("list");
 const tableLoading = ref(false);
 const productList = ref([]);
+
+const importLoading = ref(false);
+
+// 核心功能：读取 Excel 并传给后端
+const handleExcelImport = (file: any) => {
+  importLoading.value = true;
+  const reader = new FileReader();
+
+  reader.onload = async (e) => {
+    try {
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: "array" });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+
+      // 将 Excel 转换为 JSON 对象数组
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      // 字段映射：将中文表头映射为后端需要的英文字段
+      const formattedData = jsonData.map((row: any) => ({
+        sku: row["物料编码(SKU)"],
+        name: row["物料名称"],
+        type: row["类型(FERT/HALB/ROH)"],
+        price: row["参考单价"] || 0,
+        safetyStock: row["安全库存"] || 0,
+        leadTime: row["提前期(天)"] || 0,
+      }));
+
+      // 调用后端批量导入接口
+      const res = await bulkImportProductsApi(formattedData);
+      if (res.success) {
+        ElMessage.success(res.message);
+        fetchProducts(); // 刷新表格
+      } else {
+        ElMessage.error(res.message || "导入失败，请检查 SKU 是否有重复");
+      }
+    } catch (error) {
+      ElMessage.error("解析 Excel 文件失败");
+    } finally {
+      importLoading.value = false;
+    }
+  };
+
+  reader.readAsArrayBuffer(file.raw);
+};
+
+// 辅助功能：生成一个空模板让用户下载填写
+const downloadTemplate = () => {
+  const templateData = [
+    {
+      "物料编码(SKU)": "ROH-001",
+      物料名称: "标准钢材",
+      "类型(FERT/HALB/ROH)": "ROH",
+      参考单价: 15.5,
+      安全库存: 100,
+      "提前期(天)": 3,
+    },
+  ];
+  const ws = XLSX.utils.json_to_sheet(templateData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "物料导入模板");
+  XLSX.writeFile(wb, "物料主数据导入模板.xlsx");
+};
 
 const fetchProducts = async () => {
   tableLoading.value = true;

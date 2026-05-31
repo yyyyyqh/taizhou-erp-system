@@ -62,4 +62,34 @@ export class ProductService {
       .leftJoin(inventory, eq(products.id, inventory.productId))
       .orderBy(desc(products.createdAt));
   }
+
+  static async bulkImport(items: any[]) {
+    return await db.transaction(async (tx) => {
+      const insertedProducts = await tx
+        .insert(products)
+        .values(
+          items.map((item) => ({
+            sku: item.sku,
+            name: item.name,
+            type: item.type || "FERT",
+            price: item.price?.toString() || "0",
+            leadTime: item.leadTime || 0,
+            safetyStock: item.safetyStock || 0,
+          })),
+        )
+        .returning();
+
+      const inventoryValues = insertedProducts.map((p) => ({
+        productId: p.id,
+        stock: 0,
+        warehouseLocation: "待分配",
+      }));
+
+      if (inventoryValues.length > 0) {
+        await tx.insert(inventory).values(inventoryValues);
+      }
+
+      return insertedProducts;
+    });
+  }
 }

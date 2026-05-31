@@ -5,5 +5,6 @@ const router = Router();
 
 router.post("/", ProductController.createProduct);
 router.get("/", ProductController.getProducts);
+router.post("/bulk", ProductController.bulkImport);
 
 export default router;
