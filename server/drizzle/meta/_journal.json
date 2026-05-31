@@ -15,6 +15,13 @@
       "when": 1780242038378,
       "tag": "0001_thick_stepford_cuckoos",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780243507192,
+      "tag": "0002_shiny_black_crow",
+      "breakpoints": true
     }
   ]
 }

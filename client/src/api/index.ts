@@ -19,3 +19,18 @@ export const processMovementApi = (data: any) =>
 
 export const getLedgerApi = (productId: string) =>
   fetch(`/api/inventory/${productId}/ledger`).then((res) => res.json());
+
+// BOM 相关接口
+export const addBomItemApi = (data: {
+  parentId: string;
+  childId: string;
+  quantity: number;
+}) =>
+  fetch("/api/bom", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).then((res) => res.json());
+
+export const getBomTreeApi = (parentId: string) =>
+  fetch(`/api/bom/${parentId}/tree`).then((res) => res.json());

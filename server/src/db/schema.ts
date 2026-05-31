@@ -14,7 +14,10 @@ export const products = pgTable("products", {
   id: uuid("id").defaultRandom().primaryKey(),
   sku: varchar("sku", { length: 100 }).notNull().unique(),
   name: varchar("name", { length: 255 }).notNull(),
+  type: varchar("type", { length: 20 }).notNull().default("FERT"),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  leadTime: integer("lead_time").notNull().default(0),
+  safetyStock: integer("safety_stock").notNull().default(0),
   attributes: jsonb("attributes").$type<Record<string, any>>().default({}),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -48,4 +51,17 @@ export const inventoryLedger = pgTable("inventory_ledger", {
   balance: integer("balance").notNull(),
   referenceId: varchar("reference_id", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const bomItems = pgTable("bom_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  parentId: uuid("parent_id")
+    .references(() => products.id)
+    .notNull(),
+  childId: uuid("child_id")
+    .references(() => products.id)
+    .notNull(),
+  quantity: decimal("quantity", { precision: 10, scale: 4 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

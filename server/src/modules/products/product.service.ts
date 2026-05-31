@@ -10,7 +10,10 @@ export class ProductService {
         .values({
           sku: data.sku,
           name: data.name,
+          type: data.type || "FERT",
           price: data.price.toString(),
+          leadTime: data.leadTime || 0,
+          safetyStock: data.safetyStock || 0,
           attributes: data.attributes || {},
         })
         .returning();
@@ -46,7 +49,10 @@ export class ProductService {
         id: products.id,
         sku: products.sku,
         name: products.name,
+        type: products.type,
         price: products.price,
+        leadTime: products.leadTime,
+        safetyStock: products.safetyStock,
         stock: inventory.stock,
         warehouseLocation: inventory.warehouseLocation,
         attributes: products.attributes,

@@ -13,6 +13,9 @@
         <el-menu-item index="/products">
           <span>商品与库存管理</span>
         </el-menu-item>
+        <el-menu-item index="/bom">
+          <span>BOM 物料清单设计</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 

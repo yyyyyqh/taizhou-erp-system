@@ -1,7 +1,7 @@
 <template>
   <div class="product-container">
     <el-tabs v-model="activeTab" @tab-change="handleTabChange">
-      <el-tab-pane label="商品台账列表" name="list">
+      <el-tab-pane label="物料与库存台账" name="list">
         <el-table
           v-loading="tableLoading"
           :data="productList"
@@ -10,23 +10,42 @@
           style="width: 100%; margin-top: 15px"
         >
           <el-table-column prop="sku" label="SKU" width="150" />
-          <el-table-column prop="name" label="商品名称" min-width="180" />
-          <el-table-column prop="price" label="单价 (元)" width="100">
-            <template #default="scope">¥{{ scope.row.price }}</template>
+          <el-table-column prop="name" label="物料名称" min-width="180" />
+          <el-table-column prop="type" label="类型" width="100">
+            <template #default="scope">
+              <el-tag
+                :type="
+                  scope.row.type === 'FERT'
+                    ? 'success'
+                    : scope.row.type === 'ROH'
+                      ? 'warning'
+                      : 'info'
+                "
+              >
+                {{
+                  scope.row.type === "FERT"
+                    ? "产成品"
+                    : scope.row.type === "ROH"
+                      ? "原材料"
+                      : "半成品"
+                }}
+              </el-tag>
+            </template>
           </el-table-column>
           <el-table-column prop="stock" label="当前库存" width="100">
             <template #default="scope">
-              <el-tag :type="scope.row.stock > 10 ? 'success' : 'danger'">
+              <el-tag
+                :type="
+                  scope.row.stock > scope.row.safetyStock ? 'success' : 'danger'
+                "
+              >
                 {{ scope.row.stock }}
               </el-tag>
             </template>
           </el-table-column>
+          <el-table-column prop="safetyStock" label="安全库存" width="100" />
+          <el-table-column prop="leadTime" label="提前期(天)" width="100" />
           <el-table-column prop="warehouseLocation" label="库位" width="120" />
-          <el-table-column label="品牌" width="120">
-            <template #default="scope">{{
-              scope.row.attributes?.brand || "-"
-            }}</template>
-          </el-table-column>
           <el-table-column label="操作" width="180" fixed="right">
             <template #default="scope">
               <el-button
@@ -43,7 +62,7 @@
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane label="新建商品入库" name="create">
+      <el-tab-pane label="新建物料入库" name="create">
         <el-form
           ref="formRef"
           :model="formData"
@@ -51,12 +70,25 @@
           label-width="120px"
           style="margin-top: 20px; max-width: 600px"
         >
-          <el-form-item label="商品 SKU" prop="sku"
+          <el-form-item label="物料 SKU" prop="sku"
             ><el-input v-model="formData.sku"
           /></el-form-item>
-          <el-form-item label="商品名称" prop="name"
+          <el-form-item label="物料名称" prop="name"
             ><el-input v-model="formData.name"
           /></el-form-item>
+
+          <el-form-item label="物料类型" prop="type">
+            <el-select
+              v-model="formData.type"
+              placeholder="请选择物料类型"
+              style="width: 100%"
+            >
+              <el-option label="产成品 (FERT)" value="FERT" />
+              <el-option label="半成品 (HALB)" value="HALB" />
+              <el-option label="原材料 (ROH)" value="ROH" />
+            </el-select>
+          </el-form-item>
+
           <el-form-item label="单价" prop="price"
             ><el-input-number
               v-model="formData.price"
@@ -65,16 +97,17 @@
               :min="0"
           /></el-form-item>
 
-          <el-divider>扩展属性</el-divider>
-          <el-form-item label="品牌"
-            ><el-input v-model="formData.attributes.brand"
-          /></el-form-item>
-          <el-form-item label="材质"
-            ><el-input v-model="formData.attributes.material"
-          /></el-form-item>
-          <el-form-item label="适配车型"
-            ><el-input v-model="formData.attributes.carModel"
-          /></el-form-item>
+          <el-divider>计划参数 (MRP核心)</el-divider>
+          <el-form-item label="安全库存" prop="safetyStock">
+            <el-input-number
+              v-model="formData.safetyStock"
+              :min="0"
+              :step="1"
+            />
+          </el-form-item>
+          <el-form-item label="提前期(天)" prop="leadTime">
+            <el-input-number v-model="formData.leadTime" :min="0" :step="1" />
+          </el-form-item>
 
           <el-divider>初始库存</el-divider>
           <el-form-item label="初始数量" prop="initialStock"
@@ -101,7 +134,7 @@
 
     <el-dialog
       v-model="movementDialogVisible"
-      title="商品出入库操作"
+      title="物料出入库操作"
       width="500px"
     >
       <el-form
@@ -179,7 +212,6 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from "vue";
 import { ElMessage } from "element-plus";
-// 引入刚刚抽离的 API
 import {
   getProductsApi,
   createProductApi,
@@ -191,7 +223,6 @@ const activeTab = ref("list");
 const tableLoading = ref(false);
 const productList = ref([]);
 
-// 加载列表数据
 const fetchProducts = async () => {
   tableLoading.value = true;
   try {
@@ -210,21 +241,24 @@ const handleTabChange = (tabName: string) => {
 
 onMounted(() => fetchProducts());
 
-// ----------------- 新建商品逻辑 -----------------
 const formRef = ref();
 const submitLoading = ref(false);
 const formData = reactive({
   sku: "",
   name: "",
+  type: "FERT",
   price: 0,
+  leadTime: 0,
+  safetyStock: 0,
   attributes: { brand: "", material: "", carModel: "" },
   initialStock: 0,
   warehouseLocation: "",
 });
 
 const rules = {
-  sku: [{ required: true, message: "请输入商品 SKU", trigger: "blur" }],
-  name: [{ required: true, message: "请输入商品名称", trigger: "blur" }],
+  sku: [{ required: true, message: "请输入物料 SKU", trigger: "blur" }],
+  name: [{ required: true, message: "请输入物料名称", trigger: "blur" }],
+  type: [{ required: true, message: "请选择物料类型", trigger: "change" }],
 };
 
 const submitForm = async () => {
@@ -235,7 +269,7 @@ const submitForm = async () => {
       try {
         const result = await createProductApi(formData);
         if (result.success) {
-          ElMessage.success("商品创建及库存初始化成功");
+          ElMessage.success("物料创建及库存初始化成功");
           formRef.value.resetFields();
           formData.attributes = { brand: "", material: "", carModel: "" };
           activeTab.value = "list";
@@ -252,7 +286,6 @@ const submitForm = async () => {
   });
 };
 
-// ----------------- 出入库逻辑 -----------------
 const movementDialogVisible = ref(false);
 const movementLoading = ref(false);
 const movementFormRef = ref();
@@ -299,7 +332,6 @@ const submitMovement = async () => {
   });
 };
 
-// ----------------- 台账逻辑 -----------------
 const ledgerDialogVisible = ref(false);
 const ledgerLoading = ref(false);
 const ledgerList = ref([]);
