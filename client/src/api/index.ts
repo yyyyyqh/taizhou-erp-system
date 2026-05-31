@@ -41,3 +41,16 @@ export const bulkImportProductsApi = (data: any[]) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   }).then((res) => res.json());
+
+export const updateProductApi = (id: string, data: any) =>
+  fetch(`/api/products/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).then((res) => res.json());
+
+export const getSingleLevelBomApi = (parentId: string) =>
+  fetch(`/api/bom/${parentId}/single`).then((res) => res.json());
+
+export const removeBomItemApi = (id: string) =>
+  fetch(`/api/bom/${id}`, { method: "DELETE" }).then((res) => res.json());

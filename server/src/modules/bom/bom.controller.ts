@@ -30,4 +30,20 @@ export class BomController {
       data: tree,
     });
   });
+
+  static getSingleLevelBom = catchAsync(async (req: Request, res: Response) => {
+    const list = await BomService.getSingleLevelBom(req.params.parentId);
+    res.status(200).json({
+      success: true,
+      data: list,
+    });
+  });
+
+  static removeBomItem = catchAsync(async (req: Request, res: Response) => {
+    await BomService.removeBomItem(req.params.id);
+    res.status(200).json({
+      success: true,
+      message: "已移除",
+    });
+  });
 }

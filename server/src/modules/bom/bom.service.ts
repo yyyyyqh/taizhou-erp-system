@@ -1,6 +1,6 @@
 import { db } from "../../db/index";
-import { bomItems } from "../../db/schema";
-import { sql } from "drizzle-orm";
+import { bomItems, products } from "../../db/schema";
+import { sql, eq } from "drizzle-orm";
 
 export class BomService {
   static async addBomItem(parentId: string, childId: string, quantity: number) {
@@ -58,5 +58,24 @@ export class BomService {
 
     const result = await db.execute(query);
     return result.rows;
+  }
+
+  static async getSingleLevelBom(parentId: string) {
+    return await db
+      .select({
+        id: bomItems.id,
+        childId: bomItems.childId,
+        quantity: bomItems.quantity,
+        sku: products.sku,
+        name: products.name,
+        type: products.type,
+      })
+      .from(bomItems)
+      .innerJoin(products, eq(bomItems.childId, products.id))
+      .where(eq(bomItems.parentId, parentId));
+  }
+
+  static async removeBomItem(id: string) {
+    return await db.delete(bomItems).where(eq(bomItems.id, id)).returning();
   }
 }

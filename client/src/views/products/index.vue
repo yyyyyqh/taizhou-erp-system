@@ -73,6 +73,12 @@
               <el-button size="small" @click="openLedgerDialog(scope.row)"
                 >台账</el-button
               >
+              <el-button
+                size="small"
+                type="warning"
+                @click="openEditDialog(scope.row)"
+                >编辑</el-button
+              >
             </template>
           </el-table-column>
         </el-table>

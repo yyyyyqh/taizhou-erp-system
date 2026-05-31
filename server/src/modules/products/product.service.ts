@@ -92,4 +92,22 @@ export class ProductService {
       return insertedProducts;
     });
   }
+
+  // 修改物料信息
+  static async updateProduct(id: string, data: any) {
+    const [updatedProduct] = await db
+      .update(products)
+      .set({
+        sku: data.sku,
+        name: data.name,
+        type: data.type,
+        price: data.price?.toString(),
+        leadTime: data.leadTime,
+        safetyStock: data.safetyStock,
+        updatedAt: new Date(),
+      })
+      .where(eq(products.id, id))
+      .returning();
+    return updatedProduct;
+  }
 }
