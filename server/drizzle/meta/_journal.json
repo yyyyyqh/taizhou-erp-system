@@ -36,6 +36,13 @@
       "when": 1780293683217,
       "tag": "0004_pale_morph",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780295769926,
+      "tag": "0005_jazzy_kate_bishop",
+      "breakpoints": true
     }
   ]
 }

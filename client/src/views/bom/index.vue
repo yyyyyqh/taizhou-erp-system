@@ -26,14 +26,40 @@
       style="margin-top: 15px"
       v-if="selectedParentId"
     >
-      <el-tab-pane label="🛠️ 单层结构维护 (添加/编辑)" name="single">
-        <div style="margin-bottom: 15px">
-          <el-button type="primary" @click="addDialogVisible = true"
-            >+ 添加直接子组件/原材料</el-button
+      <el-tab-pane label="🛠️ 单层结构维护 (草稿区)" name="single">
+        <div
+          style="
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          "
+        >
+          <div>
+            <el-button type="primary" @click="addDialogVisible = true"
+              >+ 添加直接子组件/原材料</el-button
+            >
+            <span
+              style="
+                margin-left: 15px;
+                color: #e6a23c;
+                font-size: 13px;
+                font-weight: bold;
+              "
+            >
+              ⚠️
+              注意：此处的所有修改默认保存在【草稿】中。必须点击右侧的发布按钮，MRP
+              与生产工单才能读取到最新配方！
+            </span>
+          </div>
+          <el-button
+            type="success"
+            size="large"
+            :loading="publishLoading"
+            @click="handlePublish"
           >
-          <span style="margin-left: 15px; color: #909399; font-size: 13px">
-            提示：此处仅维护直接下一级的配方。若要修改底层子件的配方，请在顶部切换目标物料。
-          </span>
+            🚀 发布并生效配方
+          </el-button>
         </div>
 
         <el-table :data="singleLevelData" border v-loading="tableLoading">
@@ -68,7 +94,11 @@
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane label="👁️ 多层结构全览 (MRP计算视图)" name="multi">
+      <el-tab-pane label="👁️ 多层结构全览 (已生效版本)" name="multi">
+        <div style="margin-bottom: 10px; color: #67c23a; font-size: 13px">
+          * 此视图展示的是当前系统中处于
+          <b>ACTIVE (已生效)</b> 状态的配方树。MRP 将完全依据此树进行演算。
+        </div>
         <el-table
           :data="bomTreeData"
           border
@@ -166,6 +196,7 @@ import {
   addBomItemApi,
   getSingleLevelBomApi,
   removeBomItemApi,
+  publishBomApi,
 } from "../../api/index";
 
 const allProducts = ref<any[]>([]);
@@ -186,7 +217,6 @@ const fetchAllProducts = async () => {
   if (res.success) allProducts.value = res.data;
 };
 
-// 核心：根据不同 Tab 拉取不同的数据
 const loadData = async () => {
   if (!selectedParentId.value) return;
   tableLoading.value = true;
@@ -209,7 +239,6 @@ const handleParentChange = () => {
   loadData();
 };
 
-// 监听 Tab 切换，自动刷新数据
 watch(activeTab, () => {
   loadData();
 });
@@ -230,7 +259,7 @@ const submitAdd = async () => {
       quantity: formData.quantity,
     });
     if (res.success) {
-      ElMessage.success("添加成功");
+      ElMessage.success("已存入草稿区");
       addDialogVisible.value = false;
       formData.childId = "";
       formData.quantity = 1;
@@ -248,6 +277,35 @@ const handleRemove = (bomId: string) => {
       if (res.success) {
         ElMessage.success("已移除");
         loadData();
+      }
+    })
+    .catch(() => {});
+};
+
+// ----- 核心：发布并生效 BOM -----
+const publishLoading = ref(false);
+const handlePublish = async () => {
+  if (!selectedParentId.value) return ElMessage.warning("请先选择目标物料");
+
+  ElMessageBox.confirm(
+    "确认发布此配方？发布后将覆盖之前的历史版本，且立即对后续的 MRP 运算和生产工单生效。",
+    "发布配方",
+    { type: "warning", confirmButtonText: "确定发布" },
+  )
+    .then(async () => {
+      publishLoading.value = true;
+      try {
+        const res = await publishBomApi(selectedParentId.value);
+        if (res.success) {
+          ElMessage.success(res.message);
+          loadData();
+        } else {
+          ElMessage.error(res.message || "发布失败");
+        }
+      } catch (e) {
+        ElMessage.error("网络请求失败");
+      } finally {
+        publishLoading.value = false;
       }
     })
     .catch(() => {});

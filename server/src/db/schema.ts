@@ -53,17 +53,27 @@ export const inventoryLedger = pgTable("inventory_ledger", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const bomHeaders = pgTable("bom_headers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  productId: uuid("product_id")
+    .references(() => products.id)
+    .notNull(), // 生产目标(FERT/HALB)
+  version: varchar("version", { length: 50 }).notNull().default("V1.0"), // 版本号，如 V1.0, V2.1
+  status: varchar("status", { length: 20 }).notNull().default("DRAFT"), // 状态：DRAFT(草稿/等待录入), ACTIVE(已生效), ARCHIVED(已废弃)
+  effectiveDate: timestamp("effective_date").defaultNow().notNull(), // 生效时间
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const bomItems = pgTable("bom_items", {
   id: uuid("id").defaultRandom().primaryKey(),
-  parentId: uuid("parent_id")
-    .references(() => products.id)
+  bomHeaderId: uuid("bom_header_id")
+    .references(() => bomHeaders.id, { onDelete: "cascade" })
     .notNull(),
   childId: uuid("child_id")
     .references(() => products.id)
-    .notNull(),
-  quantity: decimal("quantity", { precision: 10, scale: 4 }).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    .notNull(), // 子件(ROH/HALB)
+  quantity: decimal("quantity", { precision: 10, scale: 4 }).notNull(), // 消耗数量
 });
 
 export const purchaseOrders = pgTable("purchase_orders", {

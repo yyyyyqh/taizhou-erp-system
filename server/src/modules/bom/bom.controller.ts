@@ -46,4 +46,21 @@ export class BomController {
       message: "已移除",
     });
   });
+
+  static publishBom = catchAsync(async (req: Request, res: Response) => {
+    const { parentId } = req.params;
+    const result = await BomService.publishBom(parentId);
+
+    if (!result) {
+      return res
+        .status(400)
+        .json({ success: false, message: "没有找到可发布的草稿版本" });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "BOM 配方已正式发布生效！",
+      data: result,
+    });
+  });
 }

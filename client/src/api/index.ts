@@ -101,3 +101,8 @@ export const completePrdOApi = (id: string) =>
 // ------ 数据大盘接口 ------
 export const getDashboardOverviewApi = () =>
   fetch("/api/dashboard/overview").then((res) => res.json());
+
+export const publishBomApi = (parentId: string) =>
+  fetch(`/api/bom/${parentId}/publish`, {
+    method: "POST",
+  }).then((res) => res.json());
