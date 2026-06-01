@@ -60,6 +60,18 @@
           label="最晚下单日期"
           width="140"
         />
+        <el-table-column label="操作" width="120">
+          <template #default="scope">
+            <el-button
+              v-if="scope.row.netRequirement > 0"
+              type="primary"
+              link
+              @click="handleCreateDocument(scope.row)"
+            >
+              一键下单
+            </el-button>
+          </template>
+        </el-table-column>
       </el-table>
     </el-card>
   </div>
@@ -69,6 +81,33 @@
 import { ref, reactive, onMounted, computed } from "vue";
 import { ElMessage } from "element-plus";
 import { getProductsApi, runMrpApi } from "../../api/index";
+import { useRouter } from "vue-router";
+
+const router = useRouter(); // 记得引入 useRouter
+
+// 将 handleCreateDocument 修改为：
+import { createPOApi, createPrdOApi } from "../../api/index"; // 引入具体的创建接口
+
+const handleCreateDocument = async (row: any) => {
+  try {
+    if (row.type === "ROH") {
+      await createPOApi({
+        productId: row.productId,
+        quantity: row.netRequirement,
+      });
+      ElMessage.success("采购单草稿已自动生成！");
+    } else {
+      await createPrdOApi({
+        productId: row.productId,
+        quantity: row.netRequirement,
+      });
+      ElMessage.success("生产工单草稿已自动生成！");
+    }
+    // 可选：生成后自动跳转到对应列表页查看
+  } catch (err) {
+    ElMessage.error("自动下单失败，请检查后端配置");
+  }
+};
 
 const queryForm = reactive({ productId: "", quantity: 1 });
 const allProducts = ref<any[]>([]);

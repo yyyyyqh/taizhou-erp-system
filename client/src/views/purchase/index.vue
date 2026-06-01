@@ -29,16 +29,16 @@
                 <el-table-column prop="sku" label="物料 SKU" width="150" />
                 <el-table-column prop="name" label="物料名称" min-width="180" />
                 <el-table-column prop="quantity" label="采购数量" width="100" />
-                <el-table-column prop="unitPrice" label="单价" width="100">
-                  <template #default="scope"
-                    >¥{{ scope.row.unitPrice }}</template
-                  >
+                <el-table-column prop="price" label="单价" width="100">
+                  <template #default="scope">¥{{ scope.row.price }}</template>
                 </el-table-column>
                 <el-table-column label="小计" width="100">
                   <template #default="scope">
                     <span style="font-weight: bold"
                       >¥{{
-                        (scope.row.quantity * scope.row.unitPrice).toFixed(2)
+                        (
+                          scope.row.quantity * Number(scope.row.price || 0)
+                        ).toFixed(2)
                       }}</span
                     >
                   </template>
@@ -158,7 +158,7 @@
             style="flex: 1"
           />
           <el-input-number
-            v-model="item.unitPrice"
+            v-model="item.price"
             :min="0"
             :precision="2"
             placeholder="单价"
@@ -207,7 +207,7 @@ import {
 
 const poList = ref<any[]>([]);
 const poForm = reactive({
-  supplierId: "", // 强类型主数据 ID 维度对齐
+  supplierId: "",
   expectedDate: "",
   items: [] as any[],
 });
@@ -215,7 +215,6 @@ const loading = ref(false);
 const allProducts = ref<any[]>([]);
 const allSuppliers = ref<any[]>([]);
 
-// 采购单通常只买原材料(ROH)和半成品(HALB)
 const materialOptions = computed(() =>
   allProducts.value.filter((p) => p.type === "ROH" || p.type === "HALB"),
 );
@@ -243,20 +242,15 @@ onMounted(() => {
   fetchAllSuppliers();
 });
 
-// ----- 新建单据逻辑 -----
-const dialogVisible = ref(false);
-const submitLoading = ref(false);
-
 const openCreateDialog = () => {
-  // 💡 修复点 3：初始化重置时使用最新的响应式属性名
   poForm.supplierId = "";
   poForm.expectedDate = "";
-  poForm.items = [{ productId: "", quantity: 1, unitPrice: 0 }];
+  poForm.items = [{ productId: "", quantity: 1, price: 0 }];
   dialogVisible.value = true;
 };
 
 const addItem = () => {
-  poForm.items.push({ productId: "", quantity: 1, unitPrice: 0 });
+  poForm.items.push({ productId: "", quantity: 1, price: 0 });
 };
 
 const removeItem = (index: number) => {
@@ -264,7 +258,6 @@ const removeItem = (index: number) => {
 };
 
 const submitPO = async () => {
-  // 💡 修复点 4：补全对供应商主数据的必填验证
   if (!poForm.supplierId) {
     return ElMessage.warning("请选择合规的供应商");
   }
@@ -287,7 +280,6 @@ const submitPO = async () => {
   }
 };
 
-// ----- 收货逻辑 -----
 const handleReceive = (row: any) => {
   ElMessageBox.confirm(
     `确定要对采购单 ${row.poNumber} 进行收货吗？此操作将自动增加物理大仓库存并写入台账。`,
@@ -298,10 +290,10 @@ const handleReceive = (row: any) => {
       try {
         const res = await receivePOApi(row.id);
         if (res.success) {
-          ElMessage.success(res.message);
-          fetchPOList(); // 刷新列表，状态将变为 COMPLETED
+          ElMessage.success(res.message || "收货成功");
+          fetchPOList();
         } else {
-          ElMessage.error(res.message);
+          ElMessage.error(res.message || "收货失败");
         }
       } catch (e) {
         ElMessage.error("网络请求失败");
