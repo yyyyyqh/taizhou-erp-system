@@ -7,6 +7,7 @@ import {
   timestamp,
   integer,
   check,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -23,6 +24,7 @@ export const products = pgTable("products", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// 库存表
 export const inventory = pgTable(
   "inventory",
   {
@@ -30,26 +32,34 @@ export const inventory = pgTable(
     productId: uuid("product_id")
       .references(() => products.id)
       .notNull(),
+    warehouseId: uuid("warehouse_id")
+      .references(() => warehouses.id)
+      .notNull(),
     stock: integer("stock").notNull().default(0),
-    warehouseLocation: varchar("warehouse_location", { length: 255 }),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => {
-    return {
-      stockCheck: check("stock_check", sql`${table.stock} >= 0`),
-    };
-  },
+  (t) => ({
+    // 确保同一个物料在同一个仓库里只有唯一的一条记录
+    unqStock: uniqueIndex("unq_product_warehouse").on(
+      t.productId,
+      t.warehouseId,
+    ),
+  }),
 );
 
+// 库存台账流水表
 export const inventoryLedger = pgTable("inventory_ledger", {
   id: uuid("id").defaultRandom().primaryKey(),
   productId: uuid("product_id")
     .references(() => products.id)
     .notNull(),
-  type: varchar("type", { length: 50 }).notNull(),
+  warehouseId: uuid("warehouse_id")
+    .references(() => warehouses.id)
+    .notNull(),
+  type: varchar("type", { length: 10 }).notNull(), // 'IN' 或 'OUT'
   quantity: integer("quantity").notNull(),
   balance: integer("balance").notNull(),
-  referenceId: varchar("reference_id", { length: 255 }),
+  referenceNo: varchar("reference_no", { length: 100 }), // 关联单号 (PO/PrdO/调拨单)
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -112,4 +122,13 @@ export const productionOrders = pgTable("production_orders", {
   startDate: timestamp("start_date"), // 计划开工日期
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ------ 仓库表 ------
+export const warehouses = pgTable("warehouses", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  code: varchar("code", { length: 20 }).notNull().unique(), // 如: W-MAIN, W-WIP
+  name: varchar("name", { length: 100 }).notNull(), // 如: 原材料大仓, 组装线边仓
+  type: varchar("type", { length: 20 }).notNull(), // 类型: MAIN, WIP, FG(成品)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });

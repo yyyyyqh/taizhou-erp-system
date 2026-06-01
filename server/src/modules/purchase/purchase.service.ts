@@ -75,17 +75,19 @@ export class PurchaseService {
         .from(purchaseOrderItems)
         .where(eq(purchaseOrderItems.poId, poId));
 
-      // 遍历采购单明细，依次调用库存模块写入台账
+      // 动态获取大仓 ID
+      const mainWh = await InventoryService.getWarehouseByCode("W-MAIN");
+
       for (const item of items) {
         await InventoryService.recordStockMovement(
           item.productId,
+          mainWh.id,
           "IN",
           item.quantity,
-          po.poNumber, // 将采购单号作为台账的关联单号！
+          po.poNumber,
         );
       }
 
-      // 更新采购单状态为已完成
       const [updatedPO] = await tx
         .update(purchaseOrders)
         .set({ status: "COMPLETED", updatedAt: new Date() })

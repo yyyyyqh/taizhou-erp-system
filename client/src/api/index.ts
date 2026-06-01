@@ -98,11 +98,22 @@ export const completePrdOApi = (id: string) =>
     method: "POST",
   }).then((res) => res.json());
 
-// ------ 数据大盘接口 ------
 export const getDashboardOverviewApi = () =>
   fetch("/api/dashboard/overview").then((res) => res.json());
 
 export const publishBomApi = (parentId: string) =>
   fetch(`/api/bom/${parentId}/publish`, {
     method: "POST",
+  }).then((res) => res.json());
+
+// ------ 库存与台账相关接口 ------
+// 获取当前所有仓库的实时库存列表
+export const getInventoryListApi = () =>
+  fetch("/api/inventory").then((res) => res.json());
+
+export const transferStockApi = (data: any) =>
+  fetch("/api/inventory/transfer", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
   }).then((res) => res.json());

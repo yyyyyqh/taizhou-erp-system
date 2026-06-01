@@ -28,6 +28,9 @@
         <el-menu-item index="/production">
           <span>生产工单 (PrdO) 管理</span>
         </el-menu-item>
+        <el-menu-item index="/inventory">
+          <span>📦 实时物理库存视图</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 

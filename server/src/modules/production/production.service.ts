@@ -42,44 +42,49 @@ export class ProductionService {
 
   // 核心业务：完工汇报 (Backflush 入库与扣减)
   static async completeOrder(orderId: string) {
-    return await db.transaction(async (tx) => {
-      const [order] = await tx
-        .select()
-        .from(productionOrders)
-        .where(eq(productionOrders.id, orderId));
-      if (!order || order.status === "COMPLETED")
-        throw new Error("工单不存在或已完工");
+    // 💡 修复点：移除了外层的 db.transaction，防止与 InventoryService 内部事务冲突死锁
+    const [order] = await db
+      .select()
+      .from(productionOrders)
+      .where(eq(productionOrders.id, orderId));
 
-      // 1. 获取目标产成品的单层 BOM 结构
-      const bomItems: any = await BomService.getSingleLevelBom(order.productId);
+    if (!order || order.status === "COMPLETED")
+      throw new Error("工单不存在或已完工");
 
-      // 2. 遍历 BOM，按比例扣减子件库存 (OUT)
-      for (const item of bomItems) {
-        const consumeQty = Number(item.quantity) * order.quantity;
-        await InventoryService.recordStockMovement(
-          item.childId,
-          "OUT",
-          consumeQty,
-          order.orderNumber, // 关联单号为生产工单号
-        );
-      }
+    const bomItems: any = await BomService.getSingleLevelBom(order.productId);
 
-      // 3. 增加产成品的库存 (IN)
+    // 动态获取线边仓和成品仓的 ID
+    const wipWh = await InventoryService.getWarehouseByCode("W-WIP");
+    const fgWh = await InventoryService.getWarehouseByCode("W-FG");
+
+    // 1. 遍历 BOM，按比例扣减子件库存 (从 WIP 线边仓扣减！)
+    for (const item of bomItems) {
+      const consumeQty = Number(item.quantity) * order.quantity;
       await InventoryService.recordStockMovement(
-        order.productId,
-        "IN",
-        order.quantity,
+        item.childId,
+        wipWh.id, // 👈 强制从线边仓扣料
+        "OUT",
+        consumeQty,
         order.orderNumber,
       );
+    }
 
-      // 4. 更新工单状态
-      const [updatedOrder] = await tx
-        .update(productionOrders)
-        .set({ status: "COMPLETED", updatedAt: new Date() })
-        .where(eq(productionOrders.id, orderId))
-        .returning();
+    // 2. 增加产成品的库存 (增加到 FG 成品仓！)
+    await InventoryService.recordStockMovement(
+      order.productId,
+      fgWh.id, // 👈 强制成品入发货仓
+      "IN",
+      order.quantity,
+      order.orderNumber,
+    );
 
-      return updatedOrder;
-    });
+    // 3. 更新工单状态
+    const [updatedOrder] = await db
+      .update(productionOrders)
+      .set({ status: "COMPLETED", updatedAt: new Date() })
+      .where(eq(productionOrders.id, orderId))
+      .returning();
+
+    return updatedOrder;
   }
 }
