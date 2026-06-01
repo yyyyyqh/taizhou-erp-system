@@ -82,3 +82,18 @@ export const receivePOApi = (id: string) =>
   fetch(`/api/purchase/${id}/receive`, {
     method: "POST",
   }).then((res) => res.json());
+
+export const createPrdOApi = (data: any) =>
+  fetch("/api/production", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).then((res) => res.json());
+
+export const getPrdOListApi = () =>
+  fetch("/api/production").then((res) => res.json());
+
+export const completePrdOApi = (id: string) =>
+  fetch(`/api/production/${id}/complete`, {
+    method: "POST",
+  }).then((res) => res.json());

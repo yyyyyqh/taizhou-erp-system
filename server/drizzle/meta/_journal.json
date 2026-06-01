@@ -29,6 +29,13 @@
       "when": 1780293509471,
       "tag": "0003_light_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780293683217,
+      "tag": "0004_pale_morph",
+      "breakpoints": true
     }
   ]
 }

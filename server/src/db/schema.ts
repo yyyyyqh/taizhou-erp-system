@@ -89,3 +89,17 @@ export const purchaseOrderItems = pgTable("purchase_order_items", {
     .notNull()
     .default("0"),
 });
+
+// ------ 生产工单表 ------
+export const productionOrders = pgTable("production_orders", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orderNumber: varchar("order_number", { length: 100 }).notNull().unique(), // 工单号
+  productId: uuid("product_id")
+    .references(() => products.id)
+    .notNull(), // 生产目标物料
+  quantity: integer("quantity").notNull(), // 计划生产数量
+  status: varchar("status", { length: 20 }).notNull().default("PENDING"), // 状态：PENDING(待生产), COMPLETED(已完工)
+  startDate: timestamp("start_date"), // 计划开工日期
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

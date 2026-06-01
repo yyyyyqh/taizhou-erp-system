@@ -22,6 +22,9 @@
         <el-menu-item index="/purchase">
           <span>采购单 (PO) 管理</span>
         </el-menu-item>
+        <el-menu-item index="/production">
+          <span>生产工单 (PrdO) 管理</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 
