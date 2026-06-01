@@ -66,3 +66,19 @@ export const calculateMrpApi = (data: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   }).then((res) => res.json());
+
+// ------ 采购订单相关接口 ------
+export const createPOApi = (data: any) =>
+  fetch("/api/purchase", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).then((res) => res.json());
+
+export const getPOListApi = () =>
+  fetch("/api/purchase").then((res) => res.json());
+
+export const receivePOApi = (id: string) =>
+  fetch(`/api/purchase/${id}/receive`, {
+    method: "POST",
+  }).then((res) => res.json());

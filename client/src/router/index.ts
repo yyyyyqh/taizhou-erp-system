@@ -24,6 +24,11 @@ const router = createRouter({
           name: "Mrp",
           component: () => import("../views/mrp/index.vue"),
         },
+        {
+          path: "purchase",
+          name: "Purchase",
+          component: () => import("../views/purchase/index.vue"),
+        },
       ],
     },
   ],

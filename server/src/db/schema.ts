@@ -65,3 +65,27 @@ export const bomItems = pgTable("bom_items", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const purchaseOrders = pgTable("purchase_orders", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  poNumber: varchar("po_number", { length: 100 }).notNull().unique(), // 采购单号
+  status: varchar("status", { length: 20 }).notNull().default("PENDING"), // 状态：PENDING(待收货), COMPLETED(已收货)
+  supplier: varchar("supplier", { length: 255 }), // 供应商名称
+  expectedDate: timestamp("expected_date"), // 预计交货期
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const purchaseOrderItems = pgTable("purchase_order_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  poId: uuid("po_id")
+    .references(() => purchaseOrders.id)
+    .notNull(),
+  productId: uuid("product_id")
+    .references(() => products.id)
+    .notNull(),
+  quantity: integer("quantity").notNull(),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 })
+    .notNull()
+    .default("0"),
+});
