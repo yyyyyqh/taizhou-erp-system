@@ -16,6 +16,9 @@
         <el-menu-item index="/bom">
           <span>BOM 物料清单设计</span>
         </el-menu-item>
+        <el-menu-item index="/mrp">
+          <span>MRP 运算与计划排程</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 

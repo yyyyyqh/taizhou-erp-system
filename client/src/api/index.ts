@@ -54,3 +54,15 @@ export const getSingleLevelBomApi = (parentId: string) =>
 
 export const removeBomItemApi = (id: string) =>
   fetch(`/api/bom/${id}`, { method: "DELETE" }).then((res) => res.json());
+
+// MRP 相关接口
+export const calculateMrpApi = (data: {
+  productId: string;
+  quantity: number;
+  dueDate: string | Date;
+}) =>
+  fetch("/api/mrp/calculate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).then((res) => res.json());

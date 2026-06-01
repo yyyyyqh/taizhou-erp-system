@@ -19,6 +19,11 @@ const router = createRouter({
           name: "Bom",
           component: () => import("../views/bom/index.vue"),
         },
+        {
+          path: "mrp",
+          name: "Mrp",
+          component: () => import("../views/mrp/index.vue"),
+        },
       ],
     },
   ],
