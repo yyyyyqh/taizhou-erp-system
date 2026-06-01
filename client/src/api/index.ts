@@ -42,13 +42,6 @@ export const bulkImportProductsApi = (data: any[]) =>
     body: JSON.stringify(data),
   }).then((res) => res.json());
 
-export const updateProductApi = (id: string, data: any) =>
-  fetch(`/api/products/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  }).then((res) => res.json());
-
 export const getSingleLevelBomApi = (parentId: string) =>
   fetch(`/api/bom/${parentId}/single`).then((res) => res.json());
 
@@ -127,6 +120,13 @@ export const getSuppliersApi = () =>
 export const createSupplierApi = (data: any) =>
   fetch("/api/suppliers", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).then((res) => res.json());
+
+export const updateProductApi = (id: string, data: any) =>
+  fetch(`/api/products/${id}`, {
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   }).then((res) => res.json());

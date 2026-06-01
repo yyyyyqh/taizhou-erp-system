@@ -217,12 +217,70 @@
         </el-table-column>
       </el-table>
     </el-dialog>
+
+    <el-dialog
+      v-model="editDialogVisible"
+      title="修改物料主数据属性"
+      width="520px"
+    >
+      <el-form
+        ref="editFormRef"
+        :model="editForm"
+        :rules="rules"
+        label-width="110px"
+        style="padding: 10px 20px 0 10px"
+      >
+        <el-form-item label="物料 SKU">
+          <el-input v-model="editForm.sku" disabled />
+          <span style="font-size: 12px; color: #909399"
+            >* 核心主键 SKU 编码在企业级 ERP 中建档后禁止篡改</span
+          >
+        </el-form-item>
+        <el-form-item label="物料名称" prop="name">
+          <el-input v-model="editForm.name" />
+        </el-form-item>
+        <el-form-item label="物料类型" prop="type">
+          <el-select v-model="editForm.type" style="width: 100%">
+            <el-option label="产成品 (FERT)" value="FERT" />
+            <el-option label="半成品 (HALB)" value="HALB" />
+            <el-option label="原材料 (ROH)" value="ROH" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="参考单价" prop="price">
+          <el-input-number
+            v-model="editForm.price"
+            :precision="2"
+            :min="0"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="安全库存" prop="safetyStock">
+          <el-input-number
+            v-model="editForm.safetyStock"
+            :min="0"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="提前期(天)" prop="leadTime">
+          <el-input-number
+            v-model="editForm.leadTime"
+            :min="0"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editLoading" @click="submitEdit"
+          >保存修改</el-button
+        >
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import * as XLSX from "xlsx";
-import { bulkImportProductsApi } from "../../api/index";
 import { ref, reactive, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import {
@@ -230,6 +288,8 @@ import {
   createProductApi,
   processMovementApi,
   getLedgerApi,
+  bulkImportProductsApi,
+  updateProductApi, // 💡 引入更新接口
 } from "../../api/index";
 
 const activeTab = ref("list");
@@ -237,7 +297,7 @@ const tableLoading = ref(false);
 const productList = ref([]);
 const importLoading = ref(false);
 
-// 核心重构：模糊包含映射，解决因空格、括号差异导致的解析失败
+// Excel 动态包含映射解析
 const handleExcelImport = (file: any) => {
   importLoading.value = true;
   const reader = new FileReader();
@@ -249,7 +309,6 @@ const handleExcelImport = (file: any) => {
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-      // 💡 动态提取函数：只要表头包含特定中文字符串，即精准提取，抗噪抗干扰
       const formattedData = jsonData.map((row: any) => {
         const keys = Object.keys(row);
         const getValueByKeyword = (keyword: string) => {
@@ -257,7 +316,6 @@ const handleExcelImport = (file: any) => {
           return matchedKey ? row[matchedKey] : undefined;
         };
 
-        // 规范化提取并去空格
         const extractedType = getValueByKeyword("类型")
           ?.toString()
           .trim()
@@ -266,14 +324,13 @@ const handleExcelImport = (file: any) => {
         return {
           sku: getValueByKeyword("编码") || getValueByKeyword("SKU"),
           name: getValueByKeyword("名称"),
-          type: extractedType, // 此时 FERT / HALB / ROH 被完美安全剥离
+          type: extractedType,
           price: getValueByKeyword("单价") || 0,
           safetyStock: getValueByKeyword("安全库存") || 0,
           leadTime: getValueByKeyword("提前期") || 0,
         };
       });
 
-      // 简单前置数据合规校验
       if (formattedData.some((item) => !item.sku || !item.name || !item.type)) {
         throw new Error(
           "检测到必要字段（编码/名称/类型）解析为空，请检查模板格式",
@@ -297,7 +354,6 @@ const handleExcelImport = (file: any) => {
   reader.readAsArrayBuffer(file.raw);
 };
 
-// 辅助功能：生成一个绝对干净的标准模板
 const downloadTemplate = () => {
   const templateData = [
     {
@@ -333,6 +389,7 @@ const handleTabChange = (tabName: string) => {
 
 onMounted(() => fetchProducts());
 
+// ----- 新增物料逻辑 -----
 const formRef = ref();
 const submitLoading = ref(false);
 const formData = reactive({
@@ -374,6 +431,55 @@ const submitForm = async () => {
   });
 };
 
+// ----- 💡 补全功能：物料编辑响应式状态与逻辑 -----
+const editDialogVisible = ref(false);
+const editLoading = ref(false);
+const editFormRef = ref();
+const editForm = reactive({
+  id: "",
+  sku: "",
+  name: "",
+  type: "FERT",
+  price: 0,
+  leadTime: 0,
+  safetyStock: 0,
+});
+
+const openEditDialog = (row: any) => {
+  editForm.id = row.id;
+  editForm.sku = row.sku;
+  editForm.name = row.name;
+  editForm.type = row.type;
+  editForm.price = Number(row.price) || 0;
+  editForm.leadTime = row.leadTime || 0;
+  editForm.safetyStock = row.safetyStock || 0;
+  editDialogVisible.value = true;
+};
+
+const submitEdit = async () => {
+  if (!editFormRef.value) return;
+  await editFormRef.value.validate(async (valid: boolean) => {
+    if (valid) {
+      editLoading.value = true;
+      try {
+        const result = await updateProductApi(editForm.id, editForm);
+        if (result.success) {
+          ElMessage.success("物料主数据属性更新成功");
+          editDialogVisible.value = false;
+          fetchProducts(); // 刷新表格视图
+        } else {
+          ElMessage.error(result.message || "修改失败");
+        }
+      } catch (error) {
+        ElMessage.error("网络连接异常，未成功保存修改");
+      } finally {
+        editLoading.value = false;
+      }
+    }
+  });
+};
+
+// ----- 手工出入库逻辑 -----
 const movementDialogVisible = ref(false);
 const movementLoading = ref(false);
 const movementFormRef = ref();
@@ -420,6 +526,7 @@ const submitMovement = async () => {
   });
 };
 
+// ----- 流水台账展示 -----
 const ledgerDialogVisible = ref(false);
 const ledgerLoading = ref(false);
 const ledgerList = ref([]);
