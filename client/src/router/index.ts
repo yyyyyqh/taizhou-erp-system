@@ -7,7 +7,7 @@ const router = createRouter({
     {
       path: "/",
       component: Layout,
-      redirect: "/products",
+      redirect: "/dashboard", // 默认重定向到仪表盘
       children: [
         {
           path: "products",
@@ -33,6 +33,11 @@ const router = createRouter({
           path: "production",
           name: "Production",
           component: () => import("../views/production/index.vue"),
+        },
+        {
+          path: "dashboard",
+          name: "Dashboard",
+          component: () => import("../views/dashboard/index.vue"),
         },
       ],
     },

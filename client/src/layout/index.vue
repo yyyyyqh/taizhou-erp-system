@@ -6,10 +6,13 @@
         active-text-color="#409EFF"
         background-color="#304156"
         class="el-menu-vertical"
-        default-active="/products"
+        default-active="/dashboard"
         text-color="#bfcbd9"
         router
       >
+        <el-menu-item index="/dashboard">
+          <span>📊 宏观数据大盘</span>
+        </el-menu-item>
         <el-menu-item index="/products">
           <span>商品与库存管理</span>
         </el-menu-item>

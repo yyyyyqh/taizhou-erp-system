@@ -97,3 +97,7 @@ export const completePrdOApi = (id: string) =>
   fetch(`/api/production/${id}/complete`, {
     method: "POST",
   }).then((res) => res.json());
+
+// ------ 数据大盘接口 ------
+export const getDashboardOverviewApi = () =>
+  fetch("/api/dashboard/overview").then((res) => res.json());
