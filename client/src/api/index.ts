@@ -130,3 +130,13 @@ export const updateProductApi = (id: string, data: any) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   }).then((res) => res.json());
+
+export const getWarehousesApi = () =>
+  fetch("/api/warehouses").then((res) => res.json());
+
+export const createWarehouseApi = (data: any) =>
+  fetch("/api/warehouses", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).then((res) => res.json());

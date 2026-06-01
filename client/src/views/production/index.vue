@@ -65,7 +65,6 @@
       </el-table>
     </el-card>
 
-    <!-- 下达工单弹窗 -->
     <el-dialog v-model="dialogVisible" title="下达生产工单" width="500px">
       <el-form :model="form" label-width="100px">
         <el-form-item label="目标物料" required>
@@ -78,7 +77,7 @@
             <el-option
               v-for="p in productOptions"
               :key="p.id"
-              :label="`[${p.sku}] ${p.name}`"
+              :label="`[${p.type}] [${p.sku}] ${p.name}`"
               :value="p.id"
             />
           </el-select>
@@ -152,6 +151,10 @@ const submitOrder = async () => {
     if (res.success) {
       ElMessage.success("工单下达成功");
       dialogVisible.value = false;
+      // 💡 优化点 1：下达成功后清空表单
+      form.productId = "";
+      form.quantity = 1;
+      form.startDate = "";
       fetchData();
     } else {
       ElMessage.error("下达失败");
@@ -162,16 +165,21 @@ const submitOrder = async () => {
 };
 
 const handleComplete = (row: any) => {
+  // 💡 优化点 2：同步升级为严格的动态多仓倒冲文案提示
   ElMessageBox.confirm(
-    `确认工单 ${row.orderNumber} 完工？系统将自动增加入库，并扣减下级物料库存。`,
-    "完工汇报",
-    { type: "warning" },
+    `确定执行工单 ${row.orderNumber} 完工汇报？\n此操作将自动触发 BOM 倒冲机制：从【车间线边仓(WIP)】扣减原材料组件，并将制成成品精准入库至系统配置的【成品发货仓(FG)】。`,
+    "MES 生产完工确认",
+    {
+      type: "success",
+      confirmButtonText: "确认入库并扣料",
+      cancelButtonText: "取消",
+    },
   )
     .then(async () => {
       try {
         const res = await completePrdOApi(row.id);
         if (res.success) {
-          ElMessage.success(res.message);
+          ElMessage.success("完工汇报处理成功，库存及台账已异步对齐");
           fetchData();
         } else {
           ElMessage.error(res.message || "操作失败");

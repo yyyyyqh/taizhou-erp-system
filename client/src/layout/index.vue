@@ -34,6 +34,9 @@
         <el-menu-item index="/supplier">
           <span>🤝 供应商主数据档案</span>
         </el-menu-item>
+        <el-menu-item index="/warehouse">
+          <span>🏢 物理仓储网络主数据</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 
