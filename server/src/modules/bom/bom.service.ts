@@ -3,7 +3,6 @@ import { bomHeaders, bomItems, products } from "../../db/schema";
 import { sql, eq, and } from "drizzle-orm";
 
 export class BomService {
-  // --- 内部机制：自动获取或创建草稿表头 ---
   private static async getOrCreateDraftHeader(productId: string) {
     const [existing] = await db
       .select()
@@ -16,7 +15,6 @@ export class BomService {
       );
     if (existing) return existing.id;
 
-    // 如果没有草稿，新建一个 V1.0 的草稿
     const [newHeader] = await db
       .insert(bomHeaders)
       .values({
@@ -28,7 +26,6 @@ export class BomService {
     return newHeader.id;
   }
 
-  // 1. 添加子件 (永远挂载到 DRAFT 草稿上)
   static async addBomItem(parentId: string, childId: string, quantity: number) {
     const headerId = await this.getOrCreateDraftHeader(parentId);
     const [newItem] = await db
@@ -42,7 +39,6 @@ export class BomService {
     return newItem;
   }
 
-  // 2. 获取多层 BOM 树 (核心：只查 ACTIVE 生效版本，供 MRP 运算使用)
   static async getBomTree(parentId: string) {
     const query = sql`
       WITH RECURSIVE bom_tree AS (
@@ -81,9 +77,7 @@ export class BomService {
     return result.rows;
   }
 
-  // 3. 获取单层直接子件 (用于前端维护界面：优先查 DRAFT，没有再查 ACTIVE)
   static async getSingleLevelBom(parentId: string) {
-    // 优先找草稿版本
     let [header] = await db
       .select()
       .from(bomHeaders)
@@ -91,7 +85,6 @@ export class BomService {
         and(eq(bomHeaders.productId, parentId), eq(bomHeaders.status, "DRAFT")),
       );
 
-    // 没草稿就找已生效的版本
     if (!header) {
       [header] = await db
         .select()
@@ -104,31 +97,30 @@ export class BomService {
         );
     }
 
-    if (!header) return []; // 都没有说明这还是个空产品
+    if (!header) return [];
 
     return await db
       .select({
         id: bomItems.id,
         childId: bomItems.childId,
         quantity: bomItems.quantity,
-        sku: products.sku,
-        name: products.name,
-        type: products.type,
+        childSku: products.sku,
+        childName: products.name,
+        childType: products.type,
+        childLeadTime: products.leadTime,
+        childSafetyStock: products.safetyStock,
       })
       .from(bomItems)
       .innerJoin(products, eq(bomItems.childId, products.id))
       .where(eq(bomItems.bomHeaderId, header.id));
   }
 
-  // 4. 移除某个子件
   static async removeBomItem(id: string) {
     return await db.delete(bomItems).where(eq(bomItems.id, id)).returning();
   }
 
-  // 5. 新增：发布并生效 BOM
   static async publishBom(productId: string) {
     return await db.transaction(async (tx) => {
-      // 第一步：把旧的已生效版本全部标记为 ARCHIVED(废弃)
       await tx
         .update(bomHeaders)
         .set({ status: "ARCHIVED" })
@@ -139,7 +131,6 @@ export class BomService {
           ),
         );
 
-      // 第二步：把当前的 DRAFT 草稿激活为 ACTIVE
       const [published] = await tx
         .update(bomHeaders)
         .set({ status: "ACTIVE", updatedAt: new Date() })
