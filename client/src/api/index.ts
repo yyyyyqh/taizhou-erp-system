@@ -117,3 +117,16 @@ export const transferStockApi = (data: any) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   }).then((res) => res.json());
+
+// ------ 供应商主数据接口 ------
+// 获取所有启用的供应商列表
+export const getSuppliersApi = () =>
+  fetch("/api/suppliers").then((res) => res.json());
+
+// 创建新供应商档案
+export const createSupplierApi = (data: any) =>
+  fetch("/api/suppliers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).then((res) => res.json());

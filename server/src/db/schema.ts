@@ -2,29 +2,86 @@ import {
   pgTable,
   uuid,
   varchar,
+  integer,
+  timestamp,
   decimal,
   jsonb,
-  timestamp,
-  integer,
-  check,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 
+// ==========================================
+// 1. 供应商主数据表
+// ==========================================
+export const suppliers = pgTable("suppliers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  code: varchar("code", { length: 50 }).notNull().unique(), // 供应商编码 VEN-XXXXXX
+  name: varchar("name", { length: 100 }).notNull(), // 供应商全称
+  contactName: varchar("contact_name", { length: 50 }), // 联系人
+  contactPhone: varchar("contact_phone", { length: 20 }), // 联系电话
+  status: varchar("status", { length: 20 }).default("ACTIVE").notNull(), // ACTIVE / INACTIVE
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ==========================================
+// 2. 物料/商品主数据表
+// ==========================================
 export const products = pgTable("products", {
   id: uuid("id").defaultRandom().primaryKey(),
-  sku: varchar("sku", { length: 100 }).notNull().unique(),
-  name: varchar("name", { length: 255 }).notNull(),
-  type: varchar("type", { length: 20 }).notNull().default("FERT"),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  leadTime: integer("lead_time").notNull().default(0),
+  sku: varchar("sku", { length: 50 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  type: varchar("type", { length: 20 }).notNull(), // FERT(成品) / HALB(半成品) / ROH(原材料)
+  price: decimal("price", { precision: 12, scale: 2 })
+    .notNull()
+    .default("0.00"),
   safetyStock: integer("safety_stock").notNull().default(0),
-  attributes: jsonb("attributes").$type<Record<string, any>>().default({}),
+  leadTime: integer("lead_time").notNull().default(0),
+  attributes: jsonb("attributes").default({}).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// 库存表
+// ==========================================
+// 3. BOM 头表 (状态机生命周期)
+// ==========================================
+export const bomHeaders = pgTable("bom_headers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  productId: uuid("product_id")
+    .references(() => products.id)
+    .notNull(),
+  version: varchar("version", { length: 20 }).notNull().default("V1.0"),
+  status: varchar("status", { length: 20 }).notNull().default("DRAFT"), // DRAFT / ACTIVE
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ==========================================
+// 4. BOM 行表 (层级配方)
+// ==========================================
+export const bomItems = pgTable("bom_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  bomHeaderId: uuid("bom_header_id")
+    .references(() => bomHeaders.id)
+    .notNull(),
+  childId: uuid("child_id")
+    .references(() => products.id)
+    .notNull(),
+  quantity: integer("quantity").notNull().default(1),
+});
+
+// ==========================================
+// 5. 物理/逻辑仓库定义表
+// ==========================================
+export const warehouses = pgTable("warehouses", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  code: varchar("code", { length: 20 }).notNull().unique(), // W-MAIN, W-WIP, W-FG
+  name: varchar("name", { length: 100 }).notNull(), // 原材料大仓, 车间线边仓...
+  type: varchar("type", { length: 20 }).notNull(), // MAIN / WIP / FG
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ==========================================
+// 6. 实时库存表 (多仓物理隔离维度)
+// ==========================================
 export const inventory = pgTable(
   "inventory",
   {
@@ -39,15 +96,16 @@ export const inventory = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => ({
-    // 确保同一个物料在同一个仓库里只有唯一的一条记录
     unqStock: uniqueIndex("unq_product_warehouse").on(
       t.productId,
       t.warehouseId,
-    ),
+    ), // 复合唯一索引
   }),
 );
 
-// 库存台账流水表
+// ==========================================
+// 7. 库存台账流水表
+// ==========================================
 export const inventoryLedger = pgTable("inventory_ledger", {
   id: uuid("id").defaultRandom().primaryKey(),
   productId: uuid("product_id")
@@ -56,46 +114,30 @@ export const inventoryLedger = pgTable("inventory_ledger", {
   warehouseId: uuid("warehouse_id")
     .references(() => warehouses.id)
     .notNull(),
-  type: varchar("type", { length: 10 }).notNull(), // 'IN' 或 'OUT'
+  type: varchar("type", { length: 10 }).notNull(), // IN / OUT / INIT
   quantity: integer("quantity").notNull(),
   balance: integer("balance").notNull(),
-  referenceNo: varchar("reference_no", { length: 100 }), // 关联单号 (PO/PrdO/调拨单)
+  referenceNo: varchar("reference_no", { length: 100 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const bomHeaders = pgTable("bom_headers", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  productId: uuid("product_id")
-    .references(() => products.id)
-    .notNull(), // 生产目标(FERT/HALB)
-  version: varchar("version", { length: 50 }).notNull().default("V1.0"), // 版本号，如 V1.0, V2.1
-  status: varchar("status", { length: 20 }).notNull().default("DRAFT"), // 状态：DRAFT(草稿/等待录入), ACTIVE(已生效), ARCHIVED(已废弃)
-  effectiveDate: timestamp("effective_date").defaultNow().notNull(), // 生效时间
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-export const bomItems = pgTable("bom_items", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  bomHeaderId: uuid("bom_header_id")
-    .references(() => bomHeaders.id, { onDelete: "cascade" })
-    .notNull(),
-  childId: uuid("child_id")
-    .references(() => products.id)
-    .notNull(), // 子件(ROH/HALB)
-  quantity: decimal("quantity", { precision: 10, scale: 4 }).notNull(), // 消耗数量
-});
-
+// ==========================================
+// 8. 采购订单主表 (关联供应商实体)
+// ==========================================
 export const purchaseOrders = pgTable("purchase_orders", {
   id: uuid("id").defaultRandom().primaryKey(),
-  poNumber: varchar("po_number", { length: 100 }).notNull().unique(), // 采购单号
-  status: varchar("status", { length: 20 }).notNull().default("PENDING"), // 状态：PENDING(待收货), COMPLETED(已收货)
-  supplier: varchar("supplier", { length: 255 }), // 供应商名称
-  expectedDate: timestamp("expected_date"), // 预计交货期
+  poNumber: varchar("po_number", { length: 50 }).notNull().unique(),
+  supplierId: uuid("supplier_id")
+    .references(() => suppliers.id)
+    .notNull(), // 强绑定主数据 ID
+  status: varchar("status", { length: 20 }).default("DRAFT").notNull(), // DRAFT / COMPLETED
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// ==========================================
+// 9. 采购订单明细表
+// ==========================================
 export const purchaseOrderItems = pgTable("purchase_order_items", {
   id: uuid("id").defaultRandom().primaryKey(),
   poId: uuid("po_id")
@@ -105,30 +147,21 @@ export const purchaseOrderItems = pgTable("purchase_order_items", {
     .references(() => products.id)
     .notNull(),
   quantity: integer("quantity").notNull(),
-  unitPrice: decimal("unit_price", { precision: 10, scale: 2 })
-    .notNull()
-    .default("0"),
+  price: decimal("price", { precision: 12, scale: 2 }).notNull(),
 });
 
-// ------ 生产工单表 ------
+// ==========================================
+// 10. 生产工单表
+// ==========================================
 export const productionOrders = pgTable("production_orders", {
   id: uuid("id").defaultRandom().primaryKey(),
-  orderNumber: varchar("order_number", { length: 100 }).notNull().unique(), // 工单号
+  orderNumber: varchar("order_number", { length: 50 }).notNull().unique(),
   productId: uuid("product_id")
     .references(() => products.id)
-    .notNull(), // 生产目标物料
-  quantity: integer("quantity").notNull(), // 计划生产数量
-  status: varchar("status", { length: 20 }).notNull().default("PENDING"), // 状态：PENDING(待生产), COMPLETED(已完工)
-  startDate: timestamp("start_date"), // 计划开工日期
+    .notNull(),
+  quantity: integer("quantity").notNull(),
+  status: varchar("status", { length: 20 }).default("DRAFT").notNull(), // DRAFT / COMPLETED
+  startDate: timestamp("start_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// ------ 仓库表 ------
-export const warehouses = pgTable("warehouses", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  code: varchar("code", { length: 20 }).notNull().unique(), // 如: W-MAIN, W-WIP
-  name: varchar("name", { length: 100 }).notNull(), // 如: 原材料大仓, 组装线边仓
-  type: varchar("type", { length: 20 }).notNull(), // 类型: MAIN, WIP, FG(成品)
-  createdAt: timestamp("created_at").defaultNow().notNull(),
 });

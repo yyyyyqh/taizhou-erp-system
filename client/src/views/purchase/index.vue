@@ -12,9 +12,9 @@
           <span style="font-weight: bold; font-size: 16px"
             >🛒 采购订单 (PO) 管理</span
           >
-          <el-button type="primary" @click="openCreateDialog">
-            + 新建采购单
-          </el-button>
+          <el-button type="primary" @click="openCreateDialog"
+            >+ 新建采购单</el-button
+          >
         </div>
       </template>
 
@@ -51,10 +51,12 @@
         <el-table-column
           prop="poNumber"
           label="采购单号"
-          width="200"
+          width="180"
           style="font-weight: bold"
         />
-        <el-table-column prop="supplier" label="供应商" min-width="150" />
+
+        <el-table-column prop="supplierName" label="供应商" min-width="180" />
+
         <el-table-column prop="expectedDate" label="预计交期" width="120">
           <template #default="scope">
             {{
@@ -97,11 +99,20 @@
       <el-form :model="poForm" label-width="90px">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="供应商">
-              <el-input
-                v-model="poForm.supplier"
-                placeholder="输入供应商名称"
-              />
+            <el-form-item label="供应商" required>
+              <el-select
+                v-model="poForm.supplierId"
+                filterable
+                placeholder="请选择合规供应商"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="sub in allSuppliers"
+                  :key="sub.id"
+                  :label="`[${sub.code}] ${sub.name}`"
+                  :value="sub.id"
+                />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -187,6 +198,7 @@
 import { ref, reactive, onMounted, computed } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
+  getSuppliersApi,
   getProductsApi,
   getPOListApi,
   createPOApi,
@@ -194,13 +206,24 @@ import {
 } from "../../api/index";
 
 const poList = ref<any[]>([]);
+const poForm = reactive({
+  supplierId: "", // 强类型主数据 ID 维度对齐
+  expectedDate: "",
+  items: [] as any[],
+});
 const loading = ref(false);
 const allProducts = ref<any[]>([]);
+const allSuppliers = ref<any[]>([]);
 
 // 采购单通常只买原材料(ROH)和半成品(HALB)
 const materialOptions = computed(() =>
   allProducts.value.filter((p) => p.type === "ROH" || p.type === "HALB"),
 );
+
+const fetchAllSuppliers = async () => {
+  const res = await getSuppliersApi();
+  if (res.success) allSuppliers.value = res.data;
+};
 
 const fetchPOList = async () => {
   loading.value = true;
@@ -217,20 +240,16 @@ const fetchProducts = async () => {
 onMounted(() => {
   fetchPOList();
   fetchProducts();
+  fetchAllSuppliers();
 });
 
 // ----- 新建单据逻辑 -----
 const dialogVisible = ref(false);
 const submitLoading = ref(false);
 
-const poForm = reactive({
-  supplier: "",
-  expectedDate: "",
-  items: [{ productId: "", quantity: 1, unitPrice: 0 }],
-});
-
 const openCreateDialog = () => {
-  poForm.supplier = "";
+  // 💡 修复点 3：初始化重置时使用最新的响应式属性名
+  poForm.supplierId = "";
   poForm.expectedDate = "";
   poForm.items = [{ productId: "", quantity: 1, unitPrice: 0 }];
   dialogVisible.value = true;
@@ -245,7 +264,10 @@ const removeItem = (index: number) => {
 };
 
 const submitPO = async () => {
-  // 简单校验
+  // 💡 修复点 4：补全对供应商主数据的必填验证
+  if (!poForm.supplierId) {
+    return ElMessage.warning("请选择合规的供应商");
+  }
   if (poForm.items.some((item) => !item.productId)) {
     return ElMessage.warning("请为所有明细行选择物料");
   }
@@ -268,7 +290,7 @@ const submitPO = async () => {
 // ----- 收货逻辑 -----
 const handleReceive = (row: any) => {
   ElMessageBox.confirm(
-    `确定要对采购单 ${row.poNumber} 进行收货吗？此操作将自动增加库存并写入台账。`,
+    `确定要对采购单 ${row.poNumber} 进行收货吗？此操作将自动增加物理大仓库存并写入台账。`,
     "收货确认",
     { type: "warning" },
   )

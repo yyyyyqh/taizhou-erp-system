@@ -61,7 +61,6 @@
           </el-table-column>
           <el-table-column prop="safetyStock" label="安全库存" width="100" />
           <el-table-column prop="leadTime" label="提前期(天)" width="100" />
-          <el-table-column prop="warehouseLocation" label="库位" width="120" />
           <el-table-column label="操作" width="180" fixed="right">
             <template #default="scope">
               <el-button
@@ -131,17 +130,6 @@
             <el-input-number v-model="formData.leadTime" :min="0" :step="1" />
           </el-form-item>
 
-          <el-divider>初始库存</el-divider>
-          <el-form-item label="初始数量" prop="initialStock"
-            ><el-input-number
-              v-model="formData.initialStock"
-              :min="0"
-              :step="1"
-          /></el-form-item>
-          <el-form-item label="仓库库位"
-            ><el-input v-model="formData.warehouseLocation"
-          /></el-form-item>
-
           <el-form-item>
             <el-button
               type="primary"
@@ -167,8 +155,8 @@
       >
         <el-form-item label="变动类型" prop="type">
           <el-radio-group v-model="movementForm.type">
-            <el-radio label="IN" value="IN">入库</el-radio>
-            <el-radio label="OUT" value="OUT">出库</el-radio>
+            <el-radio value="IN">入库</el-radio>
+            <el-radio value="OUT">出库</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="变动数量" prop="quantity">
@@ -218,9 +206,10 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="warehouseName" label="变动仓库" width="130" />
         <el-table-column prop="quantity" label="变动数量" width="100" />
-        <el-table-column prop="balance" label="结余" width="100" />
-        <el-table-column prop="referenceId" label="关联单号" min-width="150" />
+        <el-table-column prop="balance" label="单仓结余" width="100" />
+        <el-table-column prop="referenceNo" label="关联单号" min-width="150" />
         <el-table-column prop="createdAt" label="操作时间" width="180">
           <template #default="scope">{{
             new Date(scope.row.createdAt).toLocaleString()
@@ -246,10 +235,9 @@ import {
 const activeTab = ref("list");
 const tableLoading = ref(false);
 const productList = ref([]);
-
 const importLoading = ref(false);
 
-// 核心功能：读取 Excel 并传给后端
+// 核心重构：模糊包含映射，解决因空格、括号差异导致的解析失败
 const handleExcelImport = (file: any) => {
   importLoading.value = true;
   const reader = new FileReader();
@@ -259,30 +247,48 @@ const handleExcelImport = (file: any) => {
       const data = new Uint8Array(e.target?.result as ArrayBuffer);
       const workbook = XLSX.read(data, { type: "array" });
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-
-      // 将 Excel 转换为 JSON 对象数组
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-      // 字段映射：将中文表头映射为后端需要的英文字段
-      const formattedData = jsonData.map((row: any) => ({
-        sku: row["物料编码(SKU)"],
-        name: row["物料名称"],
-        type: row["类型(FERT/HALB/ROH)"],
-        price: row["参考单价"] || 0,
-        safetyStock: row["安全库存"] || 0,
-        leadTime: row["提前期(天)"] || 0,
-      }));
+      // 💡 动态提取函数：只要表头包含特定中文字符串，即精准提取，抗噪抗干扰
+      const formattedData = jsonData.map((row: any) => {
+        const keys = Object.keys(row);
+        const getValueByKeyword = (keyword: string) => {
+          const matchedKey = keys.find((k) => k.includes(keyword));
+          return matchedKey ? row[matchedKey] : undefined;
+        };
 
-      // 调用后端批量导入接口
+        // 规范化提取并去空格
+        const extractedType = getValueByKeyword("类型")
+          ?.toString()
+          .trim()
+          .toUpperCase();
+
+        return {
+          sku: getValueByKeyword("编码") || getValueByKeyword("SKU"),
+          name: getValueByKeyword("名称"),
+          type: extractedType, // 此时 FERT / HALB / ROH 被完美安全剥离
+          price: getValueByKeyword("单价") || 0,
+          safetyStock: getValueByKeyword("安全库存") || 0,
+          leadTime: getValueByKeyword("提前期") || 0,
+        };
+      });
+
+      // 简单前置数据合规校验
+      if (formattedData.some((item) => !item.sku || !item.name || !item.type)) {
+        throw new Error(
+          "检测到必要字段（编码/名称/类型）解析为空，请检查模板格式",
+        );
+      }
+
       const res = await bulkImportProductsApi(formattedData);
       if (res.success) {
-        ElMessage.success(res.message);
-        fetchProducts(); // 刷新表格
+        ElMessage.success("Excel 物料主数据批量导入成功");
+        fetchProducts();
       } else {
         ElMessage.error(res.message || "导入失败，请检查 SKU 是否有重复");
       }
-    } catch (error) {
-      ElMessage.error("解析 Excel 文件失败");
+    } catch (error: any) {
+      ElMessage.error(error.message || "解析 Excel 文件失败");
     } finally {
       importLoading.value = false;
     }
@@ -291,7 +297,7 @@ const handleExcelImport = (file: any) => {
   reader.readAsArrayBuffer(file.raw);
 };
 
-// 辅助功能：生成一个空模板让用户下载填写
+// 辅助功能：生成一个绝对干净的标准模板
 const downloadTemplate = () => {
   const templateData = [
     {
@@ -336,9 +342,6 @@ const formData = reactive({
   price: 0,
   leadTime: 0,
   safetyStock: 0,
-  attributes: { brand: "", material: "", carModel: "" },
-  initialStock: 0,
-  warehouseLocation: "",
 });
 
 const rules = {
@@ -355,9 +358,8 @@ const submitForm = async () => {
       try {
         const result = await createProductApi(formData);
         if (result.success) {
-          ElMessage.success("物料创建及库存初始化成功");
+          ElMessage.success("物料创建成功");
           formRef.value.resetFields();
-          formData.attributes = { brand: "", material: "", carModel: "" };
           activeTab.value = "list";
           fetchProducts();
         } else {

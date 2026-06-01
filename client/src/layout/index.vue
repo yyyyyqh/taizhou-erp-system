@@ -31,6 +31,9 @@
         <el-menu-item index="/inventory">
           <span>📦 实时物理库存视图</span>
         </el-menu-item>
+        <el-menu-item index="/supplier">
+          <span>🤝 供应商主数据档案</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 

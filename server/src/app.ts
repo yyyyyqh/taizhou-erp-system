@@ -7,6 +7,7 @@ import purchaseRoutes from "./modules/purchase/purchase.routes";
 import { errorHandler } from "./middlewares/error.middleware";
 import productionRoutes from "./modules/production/production.routes";
 import dashboardRoutes from "./modules/dashboard/dashboard.routes";
+import supplierRoutes from "./modules/supplier/supplier.routes";
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use("/api/mrp", mrpRoutes);
 app.use("/api/purchase", purchaseRoutes);
 app.use("/api/production", productionRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/suppliers", supplierRoutes);
 
 app.use(errorHandler);
 

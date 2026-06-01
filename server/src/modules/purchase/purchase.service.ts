@@ -1,63 +1,56 @@
 import { db } from "../../db/index";
-import { purchaseOrders, purchaseOrderItems, products } from "../../db/schema";
+import {
+  purchaseOrders,
+  purchaseOrderItems,
+  products,
+  suppliers,
+} from "../../db/schema";
 import { InventoryService } from "../inventory/inventory.service";
 import { eq, desc } from "drizzle-orm";
 
 export class PurchaseService {
   // 1. 创建采购单
   static async createPO(data: any) {
-    return await db.transaction(async (tx) => {
-      // 生成类似 PO-20260601-XXXX 的单号
-      const poNumber = `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 1000)}`;
+    const poNumber = `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 1000)}`;
 
+    return await db.transaction(async (tx) => {
       const [newPO] = await tx
         .insert(purchaseOrders)
         .values({
           poNumber,
-          supplier: data.supplier || "默认供应商",
-          expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
+          supplierId: data.supplierId, // 👈 核心改变：存储标准供应商实体 ID
+          status: "DRAFT",
         })
         .returning();
 
-      // 批量插入采购明细行
       if (data.items && data.items.length > 0) {
-        const itemsToInsert = data.items.map((item: any) => ({
-          poId: newPO.id,
-          productId: item.productId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice?.toString() || "0",
-        }));
-        await tx.insert(purchaseOrderItems).values(itemsToInsert);
+        await tx.insert(purchaseOrderItems).values(
+          data.items.map((item: any) => ({
+            poId: newPO.id,
+            productId: item.productId,
+            quantity: item.quantity,
+            price: item.price.toString(),
+          })),
+        );
       }
-
       return newPO;
     });
   }
 
-  // 2. 获取采购单列表（带明细）
+  // 2. 获取采购单列表
   static async getPOList() {
-    const pos = await db
-      .select()
+    return await db
+      .select({
+        id: purchaseOrders.id,
+        poNumber: purchaseOrders.poNumber,
+        status: purchaseOrders.status,
+        createdAt: purchaseOrders.createdAt,
+        supplierName: suppliers.name,
+        supplierCode: suppliers.code,
+      })
       .from(purchaseOrders)
+      .innerJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
       .orderBy(desc(purchaseOrders.createdAt));
-    // 简单起见，循环附加明细（企业级应用通常用关联查询优化）
-    const result = [];
-    for (const po of pos) {
-      const items = await db
-        .select({
-          id: purchaseOrderItems.id,
-          quantity: purchaseOrderItems.quantity,
-          unitPrice: purchaseOrderItems.unitPrice,
-          sku: products.sku,
-          name: products.name,
-        })
-        .from(purchaseOrderItems)
-        .innerJoin(products, eq(purchaseOrderItems.productId, products.id))
-        .where(eq(purchaseOrderItems.poId, po.id));
-
-      result.push({ ...po, items });
-    }
-    return result;
   }
 
   // 3. 核心流转：采购单收货入库
